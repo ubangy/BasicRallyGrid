@@ -13,13 +13,7 @@ Ext.define('CustomApp', {
 		}
     ],
 
-    launch: function() {
-        console.log("Justin's first Rally app!");
-        
-        var currentProject =  Rally.environment.getContext().getProject();
-        var workspace = Rally.environment.getContext().getWorkspace();
- 		console.log(currentProject, workspace);
-        
+    launch: function() {                
 		this._loadIterations();
     },
     
@@ -31,7 +25,7 @@ Ext.define('CustomApp', {
     		labelAlign: 'right',
     		width: 300,
     		listeners: {
-    			ready: me._loadPriorities,
+    			ready: me._loadData,
     			select: me._loadData,
     			scope: me
     		},
@@ -39,45 +33,30 @@ Ext.define('CustomApp', {
     	
     	this.down('#pulldown-container').add(iterComboBox);
     },
-
-    _loadPriorities: function() {
-    	var priComboBox = Ext.create('Rally.ui.combobox.FieldValueComboBox', {
-    		itemId: 'priority-combobox',
-    		model: 'User Story',
-    		field: 'Priority',
-    		fieldLabel: 'Priority',
-    		labelAlign: 'right',
-    		listeners: {
-    			ready: this._loadData,
-    			select: this._loadData,
-    			scope: this
-    		},
-    	});
-    	
-    	this.down('#pulldown-container').add(priComboBox);
-    },
     
-    _getFilters: function(iterValue, priValue) {
+    _getFilters: function(iterValue) {
+    
+        var currentProject =  Rally.environment.getContext().getProject();
+        
     	var iterFilter = Ext.create('Rally.data.wsapi.Filter', {
     	    property: 'Iteration',
 			operation: '=',
 			value: iterValue
     	});
     	
-    	var priFilter = Ext.create('Rally.data.wsapi.Filter', {
-    	    property: 'Priority',
-			operation: '=',
-			value: priValue
-    	});
+    	var projectfilter = Ext.create('Rally.data.lookback.QueryFilter', {
+            property: 'Project',
+            operation: '=',
+            value: currentProject.ObjectID
+        });
     	
-    	return iterFilter.and(priFilter);
+    	return projectfilter.and(iterFilter);
     },
     
     _loadData: function() {
     	var selectedIterRef = this.down('#iteration-combobox').getRecord().get('_ref');
-    	var selectedPriValue = this.down('#priority-combobox').getRecord().get('value');
     	
-    	var myFilters = this._getFilters(selectedIterRef, selectedPriValue);
+    	var myFilters = this._getFilters(selectedIterRef);
     	
     	// If store exists, just reload new data
     	if (this.userStoryStore) {
@@ -91,22 +70,14 @@ Ext.define('CustomApp', {
 				listeners: {
 					load: function(myStore, myData, success) {
 						console.log('Got data!', myStore, myData, success);
-						
-						Ext.Array.each(myData, function(data) {
-							data.set('Justin', 1);
-						});
-						
-						console.log('After Justin data!', myData);
-						
+												
 						if (!this.myGrid) {
 							this._createGrid(myStore);
 						}
-						
-						this._loadSnapshot(myData, myFilters);
 					},
 					scope: this
 				},
-				fetch: ['FormattedID', 'Name', 'Priority', 'ScheduleState', 'CreationDate', 'Justin']
+				fetch: ['FormattedID', 'Name', 'PlanEstimate']
 			});
 		}
     },
@@ -120,48 +91,27 @@ Ext.define('CustomApp', {
 			columnCfgs: [
 				{
                     text: 'Formatted ID', dataIndex: 'FormattedID', xtype: 'templatecolumn',
-                    tpl: Ext.create('Rally.ui.renderer.template.FormattedIDTemplate')
+                    tpl: Ext.create('Rally.ui.renderer.template.FormattedIDTemplate'),
+                    summaryRenderer: function(){
+                        return Ext.String.format('TOTAL:');
+                    }
                 },
                 {
                     text: 'Name', dataIndex: 'Name'
                 },
                 {
-                    text: 'Priority', dataIndex: 'Priority'
-                },
-                {
-                    text: 'Justin', dataIndex: 'Justin', xtype: 'templatecolumn'
+                    text: 'Estimate', dataIndex: 'PlanEstimate',
+                    summaryType: 'count'
                 }
 			],
+			features: [
+                {
+                    ftype: 'summary',
+                }
+            ]
 		});
 
 		this.add(this.myGrid);
     },
-    
-    _loadSnapshot: function(myData1, myFilters1) {
-    	console.log('Before', myData1, myFilters1);
-    	var snapshotStore = Ext.create('Rally.data.lookback.SnapshotStore', {
-			context: {
-				workspace: '/workspace/41529001',
-				project: '/project/19196251073',
-				projectScopeUp: false,
-				projectScopeDown: false
-			},
-			filters: [
-				{
-					property: 'FormattedID',
-					operation: '=',
-					value: 'S67202'
-				}
-			],
-    		autoLoad: true,
-    		listeners: {
-        		load: function(store, records) {
-            		console.log('Snapshots: ', records[0].get('Blocked'));
-        		},
-        		scope: this
-    		},
-    		fetch: ['FormattedID', 'Name', 'ScheduleState', 'Revisions', 'Blocked', 'CreationDate'],
-		});
-	},
 	
 });
